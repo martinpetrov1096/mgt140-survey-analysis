@@ -1,4 +1,5 @@
 import csv
+import sys
 
 def loadCSV(file):
     return list(csv.reader(open(file)))
@@ -6,117 +7,103 @@ def loadCSV(file):
 def getCol(data, qCol):
     return [row[qCol] for row in data]
 
-# Tally up the number of times each response to a question occurred
-
-
-class QResult:
-    def __init__(self, col):
-        self.q = ""
-        self.sum = 0
-        self.responseTally = {}
-        self.respTallyPerc = {}
-        self.setRespTally(col)
-
-    def setRespTally(self, col):
-        self.q = col.pop(0)
-       
-        for val in col:
-            for response in val.split(';'):
-                if self.responseTally.get(response) is None:
-                    self.responseTally[response] = 1
-                else:
-                    self.responseTally[response] += 1
-
-    def sumResponses(self):
-        for _, tally in self.responseTally.items():
-            self.sum += tally
-
-    def toPercent(self):
-        for response, tally in self.responseTally.items():
-            self.respTallyPerc[response] = tally / self.sum
-
-    def print(self):
-        print(self.q)
-        for response,percent in self.respTallyPerc.items():
-            print(response, '->', percent * 100, '%')
-        print('\n')
-
-
 class Respondent:
     def __init__(self, response, id):
         super().__init__()
         self.response = response
         self.id = id
-    
+
     def getQuestion(self, qNum):
         return self.response[qNum]
 
-    def crossTab(self, qNum1, rNum1, qNum2):
-        temp = {}
-        temp[self.getQuestion(qNum1)] = self.getQuestion(qNum2)
-        return temp
+class ResultsByCol:
+    def __init__(self, respondants, numQs):
+        super().__init__()
+        self.prompt = []
+        self.responses = self.sortByQ(respondants, numQs)
+        self.final = []
+        i = 0
+        self.getPrompts()
+        while i < numQs:
+            self.final.append(self.getTallyPercByQ(i))
+            i+=1
 
+    def getPrompts(self):
+         for val in self.responses:
+            self.prompt.append(val.pop(0))
 
-def crossAnalyze(respondants, qNum1, response, qNum2):
-    ids = []
-    
-    for respondant in respondants:
-        if respondant.response[qNum1] in response:
-            ids.append(respondant.id)
+        
+    def printAll(self):
+        for i,q in enumerate(self.final):
+            print(self.prompt[i])
+            for x,y in q.items():
+                print(x, '->', y * 100, '%')
+            print('\n')
 
+    def getTallyPercByQ(self, col):
+        tally = {}
+        for val in self.responses[col]:
+            for response in val.split(';'):
+                if tally.get(response) is None:
+                    tally[response] = 1
+                else:
+                    tally[response] += 1 
+        sum = 0
+        for _, t in tally.items():
+            sum += t
 
-    data2 = []
-    for Id in ids:
-        data2.append(respondants[Id].response)
+        tallyPerc = {}
+        for resp, t in tally.items():
+            tallyPerc[resp] = t / sum
 
-    cols2 = []
-    j = 0
-    while j < 21:
-        cols2.append(getCol(data2,j))
-        j+=1
-    qResults2 = []
-    for col in cols2:
-        qResults2.append(QResult(col))
+        return tallyPerc
 
-    for q in qResults2:
-        q.sumResponses()
-        q.toPercent()
-        q.print()
+    def sortByQ(self, respondants, numQs):
+        x = 0
+        responses = []
 
+        while x < numQs:
+            responses.append([respondant.getQuestion(x) for respondant in respondants])
+            x += 1
+        return responses
+
+def selectData(respondants, qNum, response):
+
+    temp = [respondant for respondant in respondants if respondant.getQuestion(qNum) in response and respondant.getQuestion(qNum) is not '']
+    temp2 = [respondants[0]] + temp
+
+    return temp2
 
 def main():
     data = loadCSV('results.csv')
     respondants = []
-    qResults = []
+
+    for index, response in enumerate(data):
+        respondants.append(Respondent(response, index))
 
 
-    # Cols contains the responses to each question
-    cols = []
-    i = 0
-    while i < 21:
-        cols.append(getCol(data,i))
-        i+=1
- 
-    # Tally up the responses for each column
-    
-    for col in cols:
-        qResults.append(QResult(col))
 
-    for q in qResults:
-        q.sumResponses()
-        q.toPercent()
-        #q.print()
-    
-    
-    x = 0
-    for response in data:
-        respondants.append(Respondent(response, x))
-        x+=1
+
+
+
+    print('Enter number of questions in your survey')
+    numQs = input()
+    print('Do you want to filter?(y/n)')
+    input1 = input()
+
+    if input1 is "y":
+        print('Select Question you wish to filter by: ')
+        filterQ = int(input())
+        print('Select Responses you wish to count')
+        respFilter = input()
+        respondants = selectData(respondants, filterQ, respFilter)
         
-    ids = crossAnalyze(respondants, 2, 'Senior', 3)
-    
-    
-    
+    res = ResultsByCol(respondants,21)
+    res.printAll()
+
+
+
+
 
 if __name__ == "__main__":
     main()
